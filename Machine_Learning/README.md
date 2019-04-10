@@ -1,1 +1,1 @@
-# SEE FOLDERS FOR DETAIL
+#  See homework folders for more detail
