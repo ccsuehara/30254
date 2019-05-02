@@ -37,8 +37,10 @@ def temp_val(start_time, end_time, window_train, window_test):
     Inputs:
         start_time(str): start time of dataset
         end_time(str): end time of dataset
-        window_train(int):
-
+        window_train(int): months for amplifyhing training dataset
+        window_test(int): months for amplifyhing testing dataset
+    Returns: 
+        list of validated dates
     '''
     validation_lst = []
     start_time_date = datetime.strptime(start_time, '%Y-%m-%d')
@@ -54,6 +56,18 @@ def temp_val(start_time, end_time, window_train, window_test):
     return validation_lst
     
 def temp_spl(data,temp_var,validation_elem, label):
+
+    '''
+    creates training and testing sets based on temporal validtion lists
+    Inputs:
+        data(DataFrame): data we want to work with
+        temp_va(str): feature that indicates time
+        validation_elem(list): list of training start time, end time, testing start time, end time
+        label(str): label name 
+    Returns: 
+         training and testing sets
+    '''
+
     train_start,train_end,test_start,test_end = validation_elem
     data[temp_var] = pd.to_datetime(data[temp_var])
     train_data = data[(train_start <= data[temp_var]) & ( data[temp_var] <= train_end)]
@@ -115,7 +129,7 @@ def define_clfs_params(grid_size):
     'GB': {'n_estimators': [10,100], 'learning_rate' : [0.1,0.5],'subsample' : [0.5,1.0], 'max_depth': [5,50]},
     'NB' : {},
     'DT': {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100],'min_samples_split': [2,5,10]},
-    'SVM' :{'C' :[0.1,1,5],'kernel':['linear']},
+    'SVM' :{'C' :[0.1],'kernel':['linear']},
     'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']},
     'BAG': {'n_estimators' : [5,10], 'max_samples' : [.25, .5] } 
            }
@@ -148,8 +162,16 @@ def define_clfs_params(grid_size):
 
 
 def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst):
-    """Runs the loop using models_to_run, clfs, gridm and the data
-    """
+    '''
+    Runs the loop using models_to_run, clfs, gridm and the data
+    Inputs:
+        models_to_run(list): list of models to run
+        clfs(dictionary of objects): dictionary with model objects
+        grid(str): parameter options
+        temp_var(str): temporal feature
+        label(str): label feature
+        validation_lst(list): list of dates for spliting data temporally
+    '''
     results_df =  pd.DataFrame(columns=('train_end_date','model_type','clf', 'parameters', 'auc-roc','p_at_5', 
                                         'p_at_10', 'p_at_20','p_at_30', 'p_at_40','p_at_50',
                                         'r_at_5','r_at_10','r_at_20','r_at_30','r_at_40','r_at_50',
@@ -280,6 +302,23 @@ def plot_precision_recall_n(y_true, y_prob, model_name):
 
 
 
-
+def plot_roc(name, probs, true, output_type):
+    fpr, tpr, thresholds = roc_curve(true, probs)
+    roc_auc = auc(fpr, tpr)
+    pl.clf()
+    pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+    pl.plot([0, 1], [0, 1], 'k--')
+    pl.xlim([0.0, 1.05])
+    pl.ylim([0.0, 1.05])
+    pl.xlabel('False Positive Rate')
+    pl.ylabel('True Positive Rate')
+    pl.title(name)
+    pl.legend(loc="lower right")
+    if (output_type == 'save'):
+        plt.savefig(name)
+    elif (output_type == 'show'):
+        plt.show()
+    else:
+        plt.show()
 
 
