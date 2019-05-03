@@ -172,10 +172,10 @@ def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst):
         label(str): label feature
         validation_lst(list): list of dates for spliting data temporally
     '''
-    results_df =  pd.DataFrame(columns=('train_end_date','model_type','clf', 'parameters', 'auc-roc','p_at_5', 
-                                        'p_at_10', 'p_at_20','p_at_30', 'p_at_40','p_at_50',
-                                        'r_at_5','r_at_10','r_at_20','r_at_30','r_at_40','r_at_50',
-                                        'f1_at_5','f1_at_10','f1_at_20','f1_at_30','f1_at_40','f1_at_50'))
+    results_df =  pd.DataFrame(columns=('train_end_date','model_type','clf', 'parameters', 'auc-roc','p_at_1', 'p_at_2',
+                                        'p_at_5', 'p_at_10', 'p_at_20','p_at_30', 'p_at_40','p_at_50',
+                                        'r_at_1','r_at_2','r_at_5','r_at_10','r_at_20','r_at_30','r_at_40','r_at_50',
+                                        'f1_at_1','f1_at_2','f1_at_5','f1_at_10','f1_at_20','f1_at_30','f1_at_40','f1_at_50'))
     
 
     for elem in validation_lst:
@@ -197,18 +197,24 @@ def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst):
                     #y_pred_sorted, y_test_sorted_ = zip(*sorted(zip(y_pred,y_test), reverse=True))
                     results_df.loc[len(results_df)] = [elem[1],models_to_run[index],clf, p,
                                                        roc_auc_score(y_test, y_pred_probs),
+                                                       precision_at_k(y_test_sorted, y_pred_probs_sorted, 1.0),
+                                                       precision_at_k(y_test_sorted, y_pred_probs_sorted, 2.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 5.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 10.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 20.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 30.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 40.0),
                                                        precision_at_k(y_test_sorted, y_pred_probs_sorted, 50.0),
+                                                       recall_at_k(y_test_sorted, y_pred_probs_sorted, 1.0),
+                                                       recall_at_k(y_test_sorted, y_pred_probs_sorted,2.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted, 5.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted,10.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted, 20.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted, 30.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted, 40.0),
                                                        recall_at_k(y_test_sorted, y_pred_probs_sorted, 50.0),
+                                                       f1_at_k(y_test_sorted, y_pred_probs_sorted, 1.0),
+                                                       f1_at_k(y_test_sorted, y_pred_probs_sorted, 2.0),
                                                        f1_at_k(y_test_sorted, y_pred_probs_sorted, 5.0),
                                                        f1_at_k(y_test_sorted, y_pred_probs_sorted,10.0),
                                                        f1_at_k(y_test_sorted, y_pred_probs_sorted, 20.0),
