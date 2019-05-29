@@ -19,7 +19,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 #from sklearn.grid_search import ParameterGrid
 from sklearn.model_selection import ParameterGrid
-from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import *
 from sklearn.preprocessing import StandardScaler
 import random
@@ -31,13 +30,49 @@ import seaborn as sns
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
+import pipeline as p_l
 
 
-
-
+#Features we want to turn into quantiles
 TO_QUANTILE = ['total_price_including_optional_support']
-pl.features_quantile(data,TO_QUANTILE,10)
-pl.drop_features(data, ['total_price_including_optional_support'])
+#Features we want to turn into dummies for their categorical nature
+TO_DUMMIES = ['school_metro', 
+               'primary_focus_area', 'resource_type', 'poverty_level',
+              'grade_level']
+
+
+#Features we want to drop, mainly the ids, latitude and longitude
+
+DROPS = ['projectid', 'teacher_acctid', 'schoolid',
+            'school_ncesid', 'school_latitude', 
+            'school_longitude', 'school_district', 
+            'school_county', 'secondary_focus_subject',
+            'secondary_focus_area','primary_focus_subject','school_state','school_city']
+
+#Features we already used
+UNNECESARY = ['datefullyfunded', 'days_financed']
+
+#Features we want to impute
+TO_FILL = ['primary_focus_area',
+               'resource_type', 'grade_level', 'students_reached']
+
+
+def clean_data(data,quantile):
+    '''
+    Cleans the data with the following actions:
+    - Drops features 
+    - Fills missing values
+    - Turns features into quantiles
+    - Turns features into dummies
+    '''
+    p_l.drop_features(data, DROPS)
+    p_l.drop_features(data, UNNECESARY)
+    p_l.fill_missing(data,TO_FILL,form = False)
+    p_l.features_quantile(data,TO_QUANTILE,quantile)
+    p_l.drop_features(data, TO_QUANTILE)
+    data = p_l.to_dummies(data,TO_DUMMIES)
+    p_l.drop_features(data, TO_DUMMIES)
+    return data
 
 
 def temp_val(start_time, end_time, window_train, window_test,less_days):
@@ -56,6 +91,7 @@ def temp_val(start_time, end_time, window_train, window_test,less_days):
     end_time_date = datetime.strptime(end_time, '%Y-%m-%d')
     test_end_time = end_time_date - relativedelta(days=+1)
     train_start_time = start_time_date
+
     while test_end_time <= end_time_date:
         train_end_time = train_start_time + relativedelta(months=+window_train) - relativedelta(days=+less_days)
         test_start_time = train_end_time + relativedelta(days=+less_days) + relativedelta(days=+1)
@@ -80,10 +116,10 @@ def temp_spl(data,temp_var,validation_elem, label):
     train_start,train_end,test_start,test_end = validation_elem
     data[temp_var] = pd.to_datetime(data[temp_var])
     train_data = data[(train_start <= data[temp_var]) & ( data[temp_var] <= train_end)]
-    X_train = np.array(train_data.drop([label,temp_var],1))
+    X_train = train_data.drop([label,temp_var],1)
     y_train = np.array(train_data[label])
     test_data = data[(test_start <= data[temp_var] ) & (data[temp_var]<= test_end)]
-    X_test = np.array(test_data.drop([label,temp_var],1))
+    X_test = test_data.drop([label,temp_var],1)
     y_test = np.array(test_data[label])
     return X_train, X_test, y_train, y_test 
 
@@ -124,7 +160,7 @@ def define_clfs_params(grid_size):
         'BAG': BaggingClassifier(DecisionTreeClassifier(), max_samples= 0.5, n_estimators = 20) 
             }
 
-
+    
     large_grid = { 
     'RF':{'n_estimators': [1,10,100,1000,10000], 'max_depth': [1,5,10,20,50,100], 'max_features': ['sqrt','log2'],'min_samples_split': [2,5,10], 'n_jobs': [-1]},
     'LR': { 'penalty': ['l1','l2'], 'C': [0.00001,0.0001,0.001,0.01,0.1,1,10]},
@@ -140,10 +176,10 @@ def define_clfs_params(grid_size):
        }
     
     small_grid = { 
-    'RF':{'n_estimators': [10,100], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs': [-1]},
+    'RF':{'n_estimators': [10,100], 'max_depth': [5,50], 'min_samples_split': [2,10], 'n_jobs': [-1]},
     'LR': { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10]},
     'SGD': { 'loss': ['hinge','log','perceptron'], 'penalty': ['l2','l1','elasticnet']},
-    'ET': { 'n_estimators': [10,100], 'criterion' : ['gini', 'entropy'] ,'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs': [-1]},
+    'ET': { 'n_estimators': [10,100], 'criterion' : ['gini', 'entropy'] ,'max_depth': [5,50],'min_samples_split': [2,10], 'n_jobs': [-1]},
     'AB': { 'algorithm': ['SAMME', 'SAMME.R'], 'n_estimators': [1,10,100,1000,10000]},
     'GB': {'n_estimators': [10,100], 'learning_rate' : [0.1,0.5],'subsample' : [0.5,1.0], 'max_depth': [5,50]},
     'NB' : {},
@@ -177,98 +213,6 @@ def define_clfs_params(grid_size):
     else:
         return 0, 0
 
-
-
-def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst, metric_lst, precision_lst):
-    '''
-    Runs the loop using models_to_run, clfs, gridm and the data
-    Inputs:
-        models_to_run(list): list of models to run
-        clfs(dictionary of objects): dictionary with model objects
-        grid(str): parameter options
-        temp_var(str): temporal feature
-        label(str): label feature
-        validation_lst(list): list of dates for spliting data temporally
-    '''
-
-
-    ### Creates the final dataframe with the needed columns
-    results_df =  pd.DataFrame(columns=('train_end_date','model_type','clf', 'parameters', 'auc-roc','p_at_1', 'p_at_2',
-                                        'p_at_5', 'p_at_10', 'p_at_20','p_at_30', 'p_at_40','p_at_50',
-                                        'r_at_1','r_at_2','r_at_5','r_at_10','r_at_20','r_at_30','r_at_40','r_at_50',
-                                        'f1_at_1','f1_at_2','f1_at_5','f1_at_10','f1_at_20','f1_at_30','f1_at_40','f1_at_50'))
-    
-
-    for elem in validation_lst:
-        # create training and valdation sets
-        X_train, X_test, y_train, y_test = temp_spl(data,temp_var,elem,label)
-
-        for index,clf in enumerate([clfs[x] for x in models_to_run]):
-            print(models_to_run[index])
-            parameter_values = grid[models_to_run[index]]
-            for p in ParameterGrid(parameter_values):
-                try:
-                    clf.set_params(**p)
-                    y_pred_probs = clf.fit(X_train, y_train).predict_proba(X_test)[:,1]
-                    #y_pred = clf.fit(X_train, y_train).predict(X_test)[:,1]
-                    # you can also store the model, feature importances, and prediction scores
-                    # we're only storing the metrics for now
-                    #y_pred_probs_sorted, y_pred_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_pred, y_test), reverse=True))
-                    y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs,y_test), reverse=True))
-                    #y_pred_sorted, y_test_sorted_ = zip(*sorted(zip(y_pred,y_test), reverse=True))
-                    
-                    final_lst = evaluate_models(metric_lst, precision_lst,y_test_sorted,y_pred_probs_sorted)
-
-                    results_df.loc[len(results_df)] = [elem[1],models_to_run[index],clf, p] + final_lst
-
-                    if NOTEBOOK == 1:
-                        plot_precision_recall_n(y_test,y_pred_probs,clf)
-                except IndexError as e:
-                    print('Error:',e)
-                    continue
-    return results_df
-
-
-
-def evaluate_models(metric_lst, k_lst,y_test_sorted,y_pred_probs_sorted):
-    '''
-    Creates a list of the evaluation metrics especified. 
-
-    Inputs: 
-        metric_lst (list)
-        precision_lst(list)
-        y_test_sorted(array)
-        y_pred_probs(array)
-
-    '''
-
-    final_lst = []
-    mtr_lst = metric_lst
-    if roc_auc_sc in metric_lst:
-        mtr_lst.remove(roc_auc_sc)
-        final_lst.append(roc_auc_sc(y_test_sorted,y_pred_probs_sorted))
-        
-    for metr in mtr_lst:
-        for prec in k_lst:
-            final_lst.append(metr(y_test_sorted,y_pred_probs_sorted,prec))
-
-    return final_lst
-
-
-def define_colnames(metric_lst,k_lst):
-    final_lst = []
-    names = {roc_auc_sc:'roc_auc',precision_at_k:'p_at_',recall_at_k: 'r_at_',f1_at_k: 'f1_at_'}
-    mtr_lst = metric_lst
-    if roc_auc_sc in metric_lst:
-        mtr_lst.remove(roc_auc_sc)
-        final_lst.append(names[roc_auc_sc])
-    print(final_lst)
-    for mtr in mtr_lst:
-        for k in k_lst:
-            final_lst.append(names[mtr] +'{}'.format(k))
-    return final_lst
-
-
 def roc_auc_sc(y_test_sorted,y_pred_probs_sorted):
     '''
     Gives the auc score 
@@ -279,8 +223,6 @@ def roc_auc_sc(y_test_sorted,y_pred_probs_sorted):
         auc score
     '''
     return metrics.roc_auc_score(y_test_sorted,y_pred_probs_sorted)
-
-
 
 
 def joint_sort_descending(l1, l2):
@@ -342,8 +284,124 @@ def f1_at_k(y_true, y_scores, k):
     preds_at_k = generate_binary_at_k(y_scores_sorted, k)
     recall = recall_score(y_true_sorted, preds_at_k)
     precision = precision_score(y_true_sorted, preds_at_k)
-    F1 = 2 * (precision * recall) / (precision + recall)
+    prec_rec = precision + recall
+    if prec_rec == 0:
+        F1 = 0
+    else:
+        F1 = 2 * (precision * recall) / (precision + recall)
     return F1
+
+def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst, metric_lst, k_lst,quantiles, rococo = True):
+    '''
+    Runs the loop using models_to_run, clfs, gridm and the data
+    Inputs:
+        models_to_run(list): list of models to run
+        clfs(dictionary of objects): dictionary with model objects
+        grid(str): parameter options
+        temp_var(str): temporal feature
+        label(str): label feature
+        validation_lst(list): list of dates for spliting data temporally
+    '''
+
+
+    ### Creates the final dataframe with the needed columns
+    colnames = ['train_end_date','model_type','clf', 'parameters', 'str_param'] 
+    colnames = colnames + define_colnames(metric_lst,k_lst)
+
+    results_df =  pd.DataFrame(columns=(colnames))
+
+    for elem in validation_lst:
+        # create training and valdation sets
+        X_train, X_test, y_train, y_test = temp_spl(data,temp_var,elem,label)       
+        X_train = clean_data(X_train,quantiles)
+        X_test = clean_data(X_test,quantiles)
+        X_train = np.array(X_train)
+        X_test = np.array(X_test)
+        for index,clf in enumerate([clfs[x] for x in models_to_run]):
+            print(models_to_run[index])
+            parameter_values = grid[models_to_run[index]]
+            for p in ParameterGrid(parameter_values):
+                try:
+                    clf.set_params(**p)
+                    y_pred_probs = clf.fit(X_train, y_train).predict_proba(X_test)[:,1]
+                    #y_pred = clf.fit(X_train, y_train).predict(X_test)[:,1]
+                    # you can also store the model, feature importances, and prediction scores
+                    # we're only storing the metrics for now
+                    #y_pred_probs_sorted, y_pred_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_pred, y_test), reverse=True))
+                    y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs,y_test), reverse=True))
+                    #y_pred_sorted, y_test_sorted_ = zip(*sorted(zip(y_pred,y_test), reverse=True))
+                    
+                    final_lst = evaluate_models(metric_lst, k_lst,y_test_sorted,y_pred_probs_sorted, rococo)
+                    total_lst = [elem[1],models_to_run[index],clf, p, str(p)] + final_lst
+                    results_df.loc[len(results_df)] = total_lst
+
+                    if NOTEBOOK == 1:
+                        plot_precision_recall_n(y_test,y_pred_probs,clf)
+                except IndexError as e:
+                    print('Error:',e)
+                    continue
+    return results_df
+
+
+def evaluate_models(metric_lst, k_lst,y_test_sorted,y_pred_probs_sorted, rococo = True):
+    '''
+    Creates a list of the evaluation metrics especified. 
+
+    Inputs: 
+        metric_lst (list)
+        precision_lst(list)
+        y_test_sorted(array)
+        y_pred_probs(array)
+
+    '''
+    final_lst = []
+    mtr_lst = metric_lst
+    if rococo == True:
+        final_lst.append(roc_auc_sc(y_test_sorted,y_pred_probs_sorted))
+    for metr in mtr_lst:
+        for prec in k_lst:
+            final_lst.append(metr(y_test_sorted,y_pred_probs_sorted,prec))
+
+    return final_lst
+
+
+def define_colnames(metric_lst,k_lst, rococo = True):
+    '''
+    Defines the names we want to assign to the columns
+    '''
+
+    final_lst = []
+    names = {roc_auc_sc:'roc_auc',precision_at_k:'p_at_',recall_at_k: 'r_at_',f1_at_k: 'f1_at_'}
+    mtr_lst = metric_lst
+    if rococo == True:
+        final_lst.append(names[roc_auc_sc])
+    print(final_lst)
+    for mtr in mtr_lst:
+        for k in k_lst:
+            final_lst.append(names[mtr] +'{}'.format(k))
+    return final_lst
+
+
+def rank_classifiers(df,feat,criteria):
+    aa = df.groupby([feat])
+    lst_to_keep = []
+    output_df = None
+    for key, gr in aa:
+        add_ord = gr[[criteria]]
+        add_ord.drop_duplicates(inplace = True)
+        add_ord.sort_values(by =criteria,ascending=False,inplace=True)
+        add_ord[str(key)] = np.arange(len(add_ord))
+        gr.sort_values(by=criteria, ascending=False,inplace=True)
+        total_df = pd.merge(gr,add_ord,on = criteria)
+        total_df = total_df[['model_type','clf','parameters','str_param',str(key)]]
+        if output_df is None:
+            output_df = total_df
+        else:
+            output_df = pd.merge(output_df,total_df,on = ['model_type', 'str_param'])
+        lst_to_keep.append(str(key))
+    lst_to_keep = ['model_type','clf','parameters','str_param'] + lst_to_keep 
+        
+    return output_df[lst_to_keep]
 
 def accurate(y_test_sorted_,y_pred_sorted):
     '''

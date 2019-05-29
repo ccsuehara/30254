@@ -233,14 +233,42 @@ def clf_loop(models_to_run, clfs, grid, data, temp_var, label, validation_lst):
 
 
 
+def evaluate_models(metric_lst, precision_lst,y_test_sorted,y_pred_probs_sorted):
+    final_lst = []
+    if roc_auc_score in metric_lst:
+        metric_lst.remove(roc_auc_score)
+        final_lst.append(roc_auc_score(y_test_sorted,y_pred_probs_sorted))
+        
+    for metr in metric_lst:
+        for prec in precision_lst:
+            final_lst.append(metr(y_test_sorted,y_pred_probs_sorted,prec))
+
+    return final_lst
+
 
 
 def joint_sort_descending(l1, l2):
     # l1 and l2 have to be numpy arrays
+
+    '''
+    Order the specified arrays into descending (see which ones got the highest score)
+
+    Intputs: 
+        l1: first array
+        l2: second array
+    Returns: 
+        The sorted data
+    '''
     idx = np.argsort(l1)[::-1]
     return l1[idx], l2[idx]
 
 def generate_binary_at_k(y_scores, k):
+    '''
+    Makes the cutoff for keeping only the observations that are within the top k%
+    Input:
+        y_scores: Predicted label
+        k: threshold for keeping the points
+    '''
     cutoff_index = int(len(y_scores) * (k / 100.0))
     test_predictions_binary = [1 if x < cutoff_index else 0 for x in range(len(y_scores))]
     return test_predictions_binary
@@ -263,6 +291,17 @@ def recall_at_k(y_true, y_scores, k):
     return recall
 
 def f1_at_k(y_true, y_scores, k):
+    '''
+    Calculates the F1 score of a determined k% testing sample
+
+    Inputs:
+        y_true: label from test data
+        y_scores: predicted label for test data
+        k: k%, the % value we want to predict
+
+    Returns: 
+        F1 score  
+    '''
     y_scores_sorted, y_true_sorted = joint_sort_descending(np.array(y_scores), np.array(y_true))
     preds_at_k = generate_binary_at_k(y_scores_sorted, k)
     recall = recall_score(y_true_sorted, preds_at_k)
@@ -271,10 +310,33 @@ def f1_at_k(y_true, y_scores, k):
     return F1
 
 def accurate(y_test_sorted_,y_pred_sorted):
+    '''
+    Calculates the accuracy score of a determined k% testing sample
+
+    Inputs:
+        y_test_sorted: label from test data
+        y_pred_sorted: predicted label for test data
+
+    Returns: 
+        accuracy score  
+    '''
+
     accure = metrics.accuracy_score(y_test_sorted_,y_pred_sorted)
     return accure
 
 def plot_precision_recall_n(y_true, y_prob, model_name):
+
+    '''
+    Plots the precision-recall sample for the specified model
+
+    Inputs:
+        y_test_sorted_: label from test data
+        y_pred_sorted: predicted label for test data
+
+    Returns: 
+        Image with the precision recall curve
+    '''
+
     from sklearn.metrics import precision_recall_curve
     y_score = y_prob
     precision_curve, recall_curve, pr_thresholds = precision_recall_curve(y_true, y_score)
@@ -309,6 +371,16 @@ def plot_precision_recall_n(y_true, y_prob, model_name):
 
 
 def plot_roc(name, probs, true, output_type):
+    '''
+    Plots the AUC for the specified model
+
+    Input:
+        name(string): name we want to assign to the model
+        probs(array): predicted label for test data
+        true(array): label for true data
+        output_types()
+    
+    '''
     fpr, tpr, thresholds = roc_curve(true, probs)
     roc_auc = auc(fpr, tpr)
     pl.clf()
