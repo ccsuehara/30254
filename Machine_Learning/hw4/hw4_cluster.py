@@ -197,7 +197,8 @@ def k_means(df, k,iters):
         df(Dataframe): dataframe
         k (int): number of clusters we want
         iters (int): nunber of iterations we want to perform before converging to solution
-
+    Returns:
+        nothing, just adds label to dataframe
     '''
     model = KMeans(n_clusters = k, max_iter = iters).fit(df)
     pred_k = model.predict(df)
@@ -214,6 +215,8 @@ def merge_with_k(df, clusters_to_merge ,new_cluster_val):
         df (Dataframe): dataframe where data is
         clusters_to_merge(list of ints): list of clusters we want to merge
         new_cluster_val(int): cluster that will last
+    Returns:
+        new dataframe with merging made
     '''
 
     mergings = df.replace(to_replace = clusters_to_merge, 
@@ -232,7 +235,8 @@ def recluster_new_k(df, new_k,label_name,iters):
         label_name(string): name of string that will be removed
         iters(int): nunber of iterations we want to perform before converging to solution
 
-
+    Returns:
+        new dataframe with reclustering made
     '''
     if label_name in df.columns:
         new_k_df = df.drop(label_name, axis=1)
@@ -245,7 +249,15 @@ def recluster_new_k(df, new_k,label_name,iters):
 
 def split_to_many(df, splitter_k, new_sub_k,label):
     '''
-    
+    Splits a single cluster into many clusters
+    Inputs:
+        df (Dataframe): dataframe where data is
+        splitter_k (int): what clusters we want to split
+        new_sub_k(int): how many splits we want for the splitter_k
+        label(string): name for our label variable that will be created
+    Returns: 
+        new dataframe with split made
+
 
     '''
     first_chunk = df[df[label] == splitter_k]
